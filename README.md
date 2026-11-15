@@ -136,8 +136,6 @@ Comandos disponibles dentro del chat:
 
 ### 1. Servidor MCP iniciado y accesible por HTTP
 
-> *Pegar aquí la captura de pantalla de la Terminal 1 o conservar la transcripción:*
-
 ```text
 Gastos MCP Server corriendo en http://localhost:5000
 Endpoint para conectarse: http://localhost:5000/mcp
@@ -145,8 +143,6 @@ Archivo de datos: .../retailserver/data/gastos.json
 ```
 
 ### 2. Configuración efectiva del cliente y descubrimiento de herramientas MCP
-
-> *Pegar aquí la captura de pantalla del inicio de la Terminal 2:*
 
 ```text
 Configuración actual: 
@@ -165,8 +161,6 @@ Herramientas disponibles:
 
 ### 3. Conversación completa con invocación de herramienta MCP y respuesta final
 
-> *Pegar aquí la captura de pantalla donde se observa la petición, los argumentos, el resultado MCP y la respuesta final del asistente:*
-
 ```text
 Dile algo al asistente: ocupo que calcules el total de mis gastos
 
@@ -178,8 +172,6 @@ Asistente: El total de tus gastos registrados actualmente es de **$550.00** (bas
 ```
 
 ### 4. Caso de validación / error controlado de la herramienta
-
-> *Ejecuta una consulta con un ID inexistente (ej. "Elimina el gasto con ID 99") y pega aquí la captura o transcripción resultante:*
 
 ```text
 Dile algo al asistente: Elimina el gasto con ID 99
