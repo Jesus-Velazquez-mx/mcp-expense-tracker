@@ -1,0 +1,25 @@
+# Dependencias
+node_modules/
+
+# Variables de entorno locales (se mantiene .env.example)
+.env
+.env.local
+.env.*.local
+
+# Compilados y cachés de TypeScript / Node
+dist/
+build/
+*.tsbuildinfo
+.npm
+.eslintcache
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Sistema operativo y editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
