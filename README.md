@@ -103,7 +103,7 @@ El sistema requiere ejecutar el servidor MCP y el cliente/host en **dos terminal
 ### Terminal 1: Iniciar el Servidor MCP
 
 ```bash
-npx tsx --env-file=.env src/index.ts
+npx tsx --env-file=.env src/server.ts
 ```
 
 ### Terminal 2: Iniciar el Cliente / Chat con el Asistente
