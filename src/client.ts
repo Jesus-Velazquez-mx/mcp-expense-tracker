@@ -6,12 +6,8 @@ import { stdin as input, stdout as output } from 'node:process';
 interface OllamaMessage {
     role: 'system' | 'user' | 'assistant' | 'tool';
     content: string;
-    tool_calls?: Array<{
-        function: {
-            name: string;
-            arguments: Record<string, unknown>;
-        };
-    }>;
+    tool_name?: string;
+    tool_calls?: Array<{ function: { name: string; arguments: Record<string, unknown> } }>;
 }
 
 interface OllamaChatResponse {
@@ -157,24 +153,23 @@ async function startHostSession() {
                     arguments: toolArgs
                 });
 
+                // Dentro del for de tool_calls, reemplazando el callTool actual:
                 let textoResultado = 'Sin resultado.'; // si no hay resultado, no se modifica el string
-                if (Array.isArray(mcpResult.content)) { // ver si es un array
-                    const textBlocks = mcpResult.content
-                        .filter(
-                            (b): b is { type: 'text'; text: string } =>
-                                typeof b === 'object' &&
-                                b !== null &&
-                                'type' in b &&
-                                b.type === 'text' &&
-                                'text' in b &&
-                                typeof b.text === 'string'
-                        )
-                        .map((b) => b.text); // solo regresa un arreglo de string
+                try {
+                    const mcpResult = await mcpClient.callTool({ name: toolName, arguments: toolArgs });
+                    if (Array.isArray(mcpResult.content)) { // ver si es un array
+                        const textBlocks = mcpResult.content
+                            .filter((b): b is { type: 'text'; text: string } =>
+                                typeof b === 'object' && b !== null && 'type' in b && b.type === 'text' &&
+                                'text' in b && typeof b.text === 'string')
+                            .map((b) => b.text);// solo regresa un arreglo de string
 
-                    if (textBlocks.length > 0) {
-                        textoResultado = textBlocks.join('\n'); // si son varios bloques, les da un enter
+                        if (textBlocks.length > 0) textoResultado = textBlocks.join('\n');  // si son varios bloques, les da un enter
                     }
+                } catch (err) {
+                    textoResultado = `Error al ejecutar la herramienta: ${err instanceof Error ? err.message : String(err)}`;
                 }
+
 
                 console.log(`(MCP) Resultado MCP: ${textoResultado}\n`);
 
@@ -184,6 +179,7 @@ async function startHostSession() {
                     content: textoResultado
                 });
             }
+            console.log('(LLM) Enviando el resultado de la herramienta al modelo para la respuesta final...\n');
         }
     }
 
