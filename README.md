@@ -247,15 +247,15 @@ Herramientas disponibles:
 ### 4. Conversación en la que el modelo solicita la herramienta, el cliente realiza la llamada y el modelo entrega una respuesta final
 
 ```text
-Dile algo al asistente: ocupo que calcules el total de mis gastos
+Dile algo al asistente: Consulta el gasto con ID 2
 
-(MCP) El modelo llama a la herramienta: calcular-total-gastos
-(MCP) Argumentos: {}
-(MCP) Resultado MCP: Total gastado (3 registros): $550.00
+(MCP) El modelo llama a la herramienta: consultar-gasto
+(MCP) Argumentos: {"id":2}
+(MCP) Resultado MCP: Gasto encontrado -> ID: 2 | Descripción: Recarga de transporte público | Monto: $200.00
 
 (LLM) Enviando el resultado de la herramienta al modelo para la respuesta final...
 
-Asistente: El total de tus gastos registrados actualmente es de **$550.00** (basado en 3 registros).
+Asistente: El gasto con ID 2 corresponde a una recarga de transporte público por $200.00.
 ```
 
 ### 5. Caso de validación o error controlado de la herramienta
