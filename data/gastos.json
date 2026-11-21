@@ -13,10 +13,5 @@
     "id": 3,
     "descripcion": "internet",
     "monto": 200
-  },
-  {
-    "id": 4,
-    "descripcion": "teclado",
-    "monto": 1000
   }
 ]
