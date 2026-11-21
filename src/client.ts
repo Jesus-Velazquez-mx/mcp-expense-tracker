@@ -17,6 +17,7 @@ interface OllamaChatResponse {
 
 /* Configuracion del .env */
 const MCP_SERVER_URL = process.env.MCP_SERVER_URL;
+const LLM_PROVIDER = process.env.LLM_PROVIDER || 'ollama';
 const LLM_BASE_URL = process.env.LLM_BASE_URL;
 const LLM_CHAT_PATH = process.env.LLM_CHAT_PATH || '/api/chat';
 const LLM_MODEL = process.env.LLM_MODEL;
@@ -32,6 +33,7 @@ const llmEndpoint = `${LLM_BASE_URL}${LLM_CHAT_PATH}`;
 async function startHostSession() {
     /* Mostrar la configuracion actual */
     console.log('Configuración actual: ');
+    console.log(`  Proveedor    : ${LLM_PROVIDER}`);
     console.log(`  Modelo local : ${LLM_MODEL}`);
     console.log(`  API del LLM  : ${llmEndpoint}`);
     console.log(`  Servidor MCP : ${MCP_SERVER_URL}`);
@@ -106,9 +108,11 @@ async function startHostSession() {
         /* Meter el mensaje en el arreglo para que el LLM lo vea */
         messages.push({ role: 'user', content: trimmed });
 
-        /* Ejecutar todas las tool_calls */
+        /* Rondas de llamadas al LLM */
         while (true) {
-            /* Mandar la peticion POST */
+            /* Enviar el historial al LLM para decidir si responde o solicita herramientas MCP. */
+            /* Si solicita herramientas, el bloque for las ejecuta y guarda sus resultados en messages. */
+            /* La siguiente iteración vuelve a llamar al LLM con esos resultados (segunda llamada y rondas posteriores). */
             const response = await fetch(llmEndpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -139,7 +143,7 @@ async function startHostSession() {
                 break;
             }
 
-            /* Si hay tool_calls, entonces las ejecuta una por una */
+            /* Si hay tool_calls, entonces las llama una por una */
             for (const call of responseMessage.tool_calls) {
                 const toolName = call.function.name;
                 const toolArgs = call.function.arguments;
@@ -150,7 +154,7 @@ async function startHostSession() {
                 /* Llamar a la herramienta con el nombre y los argumentos */
                 let textoResultado = 'Sin resultado.'; // si no hay resultado, no se modifica el string
                 try {
-                    const mcpResult = await mcpClient.callTool({ name: toolName, arguments: toolArgs });
+                    const mcpResult = await mcpClient.callTool({ name: toolName, arguments: toolArgs }); // llamada al MCP
                     if (Array.isArray(mcpResult.content)) { // ver si es un array
                         const textBlocks = mcpResult.content
                             .filter((b): b is { type: 'text'; text: string } =>
@@ -173,7 +177,7 @@ async function startHostSession() {
                     content: textoResultado
                 });
             }
-            console.log('(LLM) Enviando el resultado de la herramienta al modelo para la respuesta final...\n');
+            console.log('(LLM) Enviando el resultado de la(s) herramienta(s) al modelo para la respuesta final...\n');
         }
     }
 

@@ -22,7 +22,7 @@ function leerGastos(): Gasto[] {
         return [];
     } // crea un archivo vacio si no existe
     const raw = fs.readFileSync(DATA_FILE, 'utf-8');
-    return JSON.parse(raw) as Gasto[]; // Lo convierte en gasto[]
+    return JSON.parse(raw) as Gasto[]; // Lo convierte en Gasto[]
 }
 
 /* Guardar */

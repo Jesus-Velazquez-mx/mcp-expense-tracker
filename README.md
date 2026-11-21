@@ -39,6 +39,7 @@ expense_tracker/
 │   ├── server.ts          # Servidor MCP (HTTP)
 │   └── client.ts          # Cliente/host: chat + LLM local + llamadas MCP
 ├── .env.example           # Plantilla de configuración (sin secretos)
+├── gastos.example.json    # Ejemplo de estructura de datos de gastos
 ├── .gitignore
 ├── package.json
 ├── package-lock.json
@@ -103,7 +104,8 @@ PORT=5000
 # Dirección completa del servidor MCP que usa el cliente (protocolo, host, puerto y ruta)
 MCP_SERVER_URL=http://localhost:5000/mcp
 
-# LLM local (Ollama)
+# Proveedor y LLM
+LLM_PROVIDER=ollama
 LLM_BASE_URL=http://localhost:11434
 LLM_CHAT_PATH=/api/chat
 LLM_MODEL=gemma4:e4b
@@ -114,11 +116,12 @@ LLM_MODEL=gemma4:e4b
 | `HOST` | Host en el que escucha el servidor MCP | `localhost` |
 | `PORT` | Puerto del servidor MCP | `5000` |
 | `MCP_SERVER_URL` | URL completa del servidor MCP usada por el cliente | *(obligatoria)* |
+| `LLM_PROVIDER` | Nombre del proveedor del modelo | `ollama` |
 | `LLM_BASE_URL` | URL base de la API del LLM | *(obligatoria)* |
 | `LLM_CHAT_PATH` | Ruta del endpoint de chat | `/api/chat` |
 | `LLM_MODEL` | Nombre del modelo local | *(obligatoria)* |
 
-Si falta alguna variable obligatoria, el cliente muestra un mensaje de error y termina. Ninguna de estas direcciones ni el nombre del modelo están fijos en el código, y no se utilizan tokens ni secretos.
+Si falta alguna variable obligatoria, el cliente muestra un mensaje de error y termina. El proveedor, las direcciones y el nombre del modelo pueden configurarse desde el `.env`; no se utilizan tokens ni secretos.
 
 ### 4. Verificar los datos iniciales
 
@@ -222,6 +225,7 @@ Archivo de datos: .../expense_tracker/data/gastos.json
 
 ```text
 Configuración actual: 
+  Proveedor    : ollama
   Modelo local : gemma4:e4b
   API del LLM  : http://localhost:11434/api/chat
   Servidor MCP : http://localhost:5000/mcp
