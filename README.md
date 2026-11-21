@@ -85,7 +85,7 @@ ollama list
 
 ### 3. Configurar las variables de entorno
 
-Copia la plantilla para crear tu archivo `.env` local:
+Copia la plantilla `.env.example` para crear tu archivo `.env` local:
 
 ```bash
 cp .env.example .env
@@ -93,7 +93,7 @@ cp .env.example .env
 
 En Windows (PowerShell): `Copy-Item .env.example .env`
 
-El `.env` debe tener la siguiente estructura:
+El archivo `.env` debe tener la siguiente estructura:
 
 ```env
 # Servidor MCP (host y puerto en los que escucha)
@@ -210,7 +210,7 @@ Además, el servidor expone el recurso `gastos://about` con una descripción bre
 
 ## Evidencias de funcionamiento
 
-### 1. Servidor MCP iniciado y accesible por HTTP
+### 1. Servidor MCP iniciado y accesible en su URL
 
 ```text
 Gastos MCP Server corriendo en http://localhost:5000
@@ -218,13 +218,18 @@ Endpoint para conectarse: http://localhost:5000/mcp
 Archivo de datos: .../expense_tracker/data/gastos.json
 ```
 
-### 2. Configuración efectiva del cliente y descubrimiento de herramientas MCP
+### 2. Cliente mostrando el modelo, la URL del LLM y la URL del servidor MCP utilizados
 
 ```text
 Configuración actual: 
   Modelo local : gemma4:e4b
   API del LLM  : http://localhost:11434/api/chat
   Servidor MCP : http://localhost:5000/mcp
+```
+
+### 3. Cliente descubriendo las herramientas MCP
+
+```text
 Realizando conexión al servidor MCP...
 Herramientas disponibles:
   - registrar-gasto: Registra un nuevo gasto personal
@@ -235,7 +240,7 @@ Herramientas disponibles:
   - calcular-total-gastos: Calcula la suma total del dinero gastado entre todos los registros
 ```
 
-### 3. Conversación completa con invocación de herramienta MCP y respuesta final
+### 4. Conversación en la que el modelo solicita la herramienta, el cliente realiza la llamada y el modelo entrega una respuesta final
 
 ```text
 Dile algo al asistente: ocupo que calcules el total de mis gastos
@@ -249,7 +254,7 @@ Dile algo al asistente: ocupo que calcules el total de mis gastos
 Asistente: El total de tus gastos registrados actualmente es de **$550.00** (basado en 3 registros).
 ```
 
-### 4. Caso de validación / error controlado de la herramienta
+### 5. Caso de validación o error controlado de la herramienta
 
 ```text
 Dile algo al asistente: Elimina el gasto con ID 99

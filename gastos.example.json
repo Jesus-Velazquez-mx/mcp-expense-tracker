@@ -1,0 +1,17 @@
+[
+    {
+        "id": 1,
+        "descripcion": "Comida corrida y agua fresca",
+        "monto": 150
+    },
+    {
+        "id": 2,
+        "descripcion": "Recarga de transporte público",
+        "monto": 200
+    },
+    {
+        "id": 3,
+        "descripcion": "internet",
+        "monto": 200
+    }
+]

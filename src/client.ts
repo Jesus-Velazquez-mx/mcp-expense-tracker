@@ -148,12 +148,6 @@ async function startHostSession() {
                 console.log(`(MCP) Argumentos: ${JSON.stringify(toolArgs)}`);
 
                 /* Llamar a la herramienta con el nombre y los argumentos */
-                const mcpResult = await mcpClient.callTool({
-                    name: toolName,
-                    arguments: toolArgs
-                });
-
-                // Dentro del for de tool_calls, reemplazando el callTool actual:
                 let textoResultado = 'Sin resultado.'; // si no hay resultado, no se modifica el string
                 try {
                     const mcpResult = await mcpClient.callTool({ name: toolName, arguments: toolArgs });
