@@ -94,7 +94,13 @@ async function startHostSession() {
     while (true) {
         /* .question muestra un mensaje, pausa la ejecucion hasta que se escriba algo y se de enter, 
             y lo guarda en un string */
-        const userInput = await rl.question('Dile algo al asistente: ');
+        let userInput: string;
+        try {
+            userInput = await rl.question('Dile algo al asistente: ');
+        } catch (err) {
+            if (err instanceof Error && 'code' in err && err.code === 'ERR_USE_AFTER_CLOSE') break;
+            throw err;
+        }
         const trimmed = userInput.trim();
 
         if (!trimmed) continue; // si no se escribe nada no hace nada
@@ -109,76 +115,93 @@ async function startHostSession() {
         messages.push({ role: 'user', content: trimmed });
 
         /* Rondas de llamadas al LLM */
-        while (true) {
-            /* Enviar el historial al LLM para decidir si responde o solicita herramientas MCP. */
-            /* Si solicita herramientas, el bloque for las ejecuta y guarda sus resultados en messages. */
-            /* La siguiente iteración vuelve a llamar al LLM con esos resultados (segunda llamada y rondas posteriores). */
-            const response = await fetch(llmEndpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    model: LLM_MODEL,
-                    messages,
-                    stream: false,
-                    tools: ollamaTools
-                })
-            });
+        /* Enviar el historial al LLM para decidir si responde o solicita herramientas MCP. */
+        const firstResponse = await fetch(llmEndpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: LLM_MODEL,
+                messages,
+                stream: false,
+                tools: ollamaTools
+            })
+        });
 
-            /* Para cualquier error */
-            if (!response.ok) {
-                const errText = await response.text();
-                throw new Error(`Error HTTP de Ollama (${response.status}): ${errText}`);
-            }
-
-            /* Respuesta del LLM */
-            const chatResponse = (await response.json()) as OllamaChatResponse; // este es un JSON
-            const responseMessage = chatResponse.message; // este es el mensaje generado por el modelo
-
-            /* Se guarda en el arreglo de memoria */
-            messages.push(responseMessage);
-
-            /* Si no hay tool_calls, simplemente manda el mensaje de respuesta */
-            if (!responseMessage.tool_calls || responseMessage.tool_calls.length === 0) {
-                console.log(`\nAsistente: ${responseMessage.content}\n`);
-                break;
-            }
-
-            /* Si hay tool_calls, entonces las llama una por una */
-            for (const call of responseMessage.tool_calls) {
-                const toolName = call.function.name;
-                const toolArgs = call.function.arguments;
-
-                console.log(`\n(MCP) El modelo llama a la herramienta: ${toolName}`);
-                console.log(`(MCP) Argumentos: ${JSON.stringify(toolArgs)}`);
-
-                /* Llamar a la herramienta con el nombre y los argumentos */
-                let textoResultado = 'Sin resultado.'; // si no hay resultado, no se modifica el string
-                try {
-                    const mcpResult = await mcpClient.callTool({ name: toolName, arguments: toolArgs }); // llamada al MCP
-                    if (Array.isArray(mcpResult.content)) { // ver si es un array
-                        const textBlocks = mcpResult.content
-                            .filter((b): b is { type: 'text'; text: string } =>
-                                typeof b === 'object' && b !== null && 'type' in b && b.type === 'text' &&
-                                'text' in b && typeof b.text === 'string')
-                            .map((b) => b.text);// solo regresa un arreglo de string
-
-                        if (textBlocks.length > 0) textoResultado = textBlocks.join('\n');  // si son varios bloques, les da un enter
-                    }
-                } catch (err) {
-                    textoResultado = `Error al ejecutar la herramienta: ${err instanceof Error ? err.message : String(err)}`;
-                }
-
-
-                console.log(`(MCP) Resultado MCP: ${textoResultado}\n`);
-
-                /* Guardar el resultado en el contexto/memoria */
-                messages.push({
-                    role: 'tool',
-                    content: textoResultado
-                });
-            }
-            console.log('(LLM) Enviando el resultado de la(s) herramienta(s) al modelo para la respuesta final...\n');
+        /* Para cualquier error */
+        if (!firstResponse.ok) {
+            const errText = await firstResponse.text();
+            throw new Error(`Error HTTP de Ollama (${firstResponse.status}): ${errText}`);
         }
+
+        /* Respuesta del LLM */
+        const firstChatResponse = (await firstResponse.json()) as OllamaChatResponse;
+        const firstMessage = firstChatResponse.message;
+
+        /* Se guarda en el arreglo de memoria */
+        messages.push(firstMessage);
+
+        /* Si no hay tool_calls, simplemente manda el mensaje de respuesta */
+        if (!firstMessage.tool_calls || firstMessage.tool_calls.length === 0) {
+            console.log(`\nAsistente: ${firstMessage.content}\n`);
+            continue;
+        }
+
+        /* Si hay tool_calls, entonces las llama una por una */
+        for (const call of firstMessage.tool_calls) {
+            const toolName = call.function.name;
+            const toolArgs = call.function.arguments;
+
+            console.log(`\n(MCP) El modelo llama a la herramienta: ${toolName}`);
+            console.log(`(MCP) Argumentos: ${JSON.stringify(toolArgs)}`);
+
+            /* Llamar a la herramienta con el nombre y los argumentos */
+            let textoResultado = 'Sin resultado.'; // si no hay resultado, no se modifica el string
+            try {
+                const mcpResult = await mcpClient.callTool({ name: toolName, arguments: toolArgs }); // llamada al MCP
+                if (Array.isArray(mcpResult.content)) { // ver si es un array
+                    const textBlocks = mcpResult.content
+                        .filter((b): b is { type: 'text'; text: string } =>
+                            typeof b === 'object' && b !== null && 'type' in b && b.type === 'text' &&
+                            'text' in b && typeof b.text === 'string')
+                        .map((b) => b.text);// solo regresa un arreglo de string
+
+                    if (textBlocks.length > 0) textoResultado = textBlocks.join('\n'); // si son varios bloques, les da un enter
+                }
+            } catch (err) {
+                textoResultado = `Error al ejecutar la herramienta: ${err instanceof Error ? err.message : String(err)}`;
+            }
+
+            console.log(`(MCP) Resultado MCP: ${textoResultado}\n`);
+
+            /* Guardar el resultado en el contexto/memoria */
+            messages.push({
+                role: 'tool',
+                content: textoResultado,
+                tool_name: toolName
+            });
+        }
+
+        /* La siguiente iteración vuelve a llamar al LLM con esos resultados (segunda llamada y rondas posteriores). */
+        console.log('(LLM) Enviando el resultado de la(s) herramienta(s) al modelo para la respuesta final...\n');
+        const finalResponse = await fetch(llmEndpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: LLM_MODEL,
+                messages,
+                stream: false
+            })
+        });
+
+        if (!finalResponse.ok) {
+            const errText = await finalResponse.text();
+            throw new Error(`Error HTTP de Ollama (${finalResponse.status}): ${errText}`);
+        }
+
+        const finalChatResponse = (await finalResponse.json()) as OllamaChatResponse;
+        const finalMessage = finalChatResponse.message;
+        messages.push(finalMessage);
+        console.log(`\nAsistente: ${finalMessage.content}\n`);
     }
 
     /* Finalizar la sesión */
