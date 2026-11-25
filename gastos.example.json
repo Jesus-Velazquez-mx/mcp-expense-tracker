@@ -2,16 +2,22 @@
     {
         "id": 1,
         "descripcion": "Comida corrida y agua fresca",
-        "monto": 150
+        "monto": 150,
+        "fecha": "2026-11-24",
+        "categoria": "Alimentación"
     },
     {
         "id": 2,
         "descripcion": "Recarga de transporte público",
-        "monto": 200
+        "monto": 200,
+        "fecha": "2026-11-24",
+        "categoria": "Transporte"
     },
     {
         "id": 3,
         "descripcion": "internet",
-        "monto": 200
+        "monto": 200,
+        "fecha": "2026-11-23",
+        "categoria": "Servicios"
     }
 ]

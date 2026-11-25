@@ -2,7 +2,7 @@
 
 Aplicación de consola desarrollada en **TypeScript / Node.js** que implementa el **Model Context Protocol (MCP)** sobre transporte HTTP (`StreamableHTTPServerTransport`) y la conecta con un modelo de lenguaje local ejecutado mediante **Ollama**.
 
-El asistente permite gestionar gastos personales almacenados localmente en `data/gastos.json` (registrar, consultar todos, consultar por ID, actualizar, eliminar y calcular el total gastado). El LLM local decide de forma autónoma **cuándo** invocar cada herramienta y **con qué parámetros**; el cliente no contiene reglas `if/else` que reconozcan preguntas específicas.
+El asistente permite gestionar gastos personales almacenados en `data/gastos.json` y presupuestos mensuales generales guardados en `data/presupuestos.json`. Los gastos incluyen fecha y categoría; cada presupuesto considera todos los gastos del mes, sin separarlos por categoría. El LLM local decide de forma autónoma **cuándo** invocar cada herramienta y **con qué parámetros**; el cliente no contiene reglas `if/else` que reconozcan preguntas específicas.
 
 ---
 
@@ -14,15 +14,17 @@ Usuario (consola) ──▶ Cliente/Host MCP ──▶ LLM local (Ollama)
                             │◀── tool_calls ──────┘
                             ▼
                    Servidor MCP (HTTP /mcp)
-                            │
-                            ▼
-                     data/gastos.json
-                            │
-                            ▼
+                      │             │
+            lee/escribe       lee/escribe
+                      ▼             ▼
+             data/gastos.json  data/presupuestos.json
+                      │             │
+                      └──────┬──────┘
+                             ▼
               Cliente agrega mensaje `tool` al historial
-                            │
-                            ▼
-        2.ª llamada al LLM local ──▶ Respuesta final al usuario
+                             │
+                             ▼
+        Siguiente llamada al LLM ──▶ Respuesta final o más tools
 ```
 
 Si el modelo solicita más herramientas, el ciclo se repite hasta que devuelve un mensaje sin `tool_calls`.
@@ -34,12 +36,14 @@ Si el modelo solicita más herramientas, el ciclo se repite hasta que devuelve u
 ```text
 expense_tracker/
 ├── data/
-│   └── gastos.json        # Datos iniciales de prueba
+│   ├── gastos.json        # Datos iniciales de prueba
+│   └── presupuestos.json  # Datos iniciales de prueba
 ├── src/
 │   ├── server.ts          # Servidor MCP (HTTP)
 │   └── client.ts          # Cliente/host: chat + LLM local + llamadas MCP
 ├── .env.example           # Plantilla de configuración (sin secretos)
 ├── gastos.example.json    # Ejemplo de estructura de datos de gastos
+├── presupuestos.example.json # Ejemplo de estructura de presupuestos
 ├── .gitignore
 ├── package.json
 ├── package-lock.json
@@ -132,22 +136,41 @@ El archivo `data/gastos.json` contiene los registros de prueba para reproducir l
   {
     "id": 1,
     "descripcion": "Comida corrida y agua fresca",
-    "monto": 150
+    "monto": 150,
+    "fecha": "2026-11-24",
+    "categoria": "Alimentación"
   },
   {
     "id": 2,
     "descripcion": "Recarga de transporte público",
-    "monto": 200
+    "monto": 200,
+    "fecha": "2026-11-24",
+    "categoria": "Transporte"
   },
   {
     "id": 3,
     "descripcion": "internet",
-    "monto": 200
+    "monto": 200,
+    "fecha": "2026-11-23",
+    "categoria": "Servicios"
   }
 ]
 ```
 
 Si el archivo no existe, el servidor lo crea automáticamente vacío (`[]`).
+
+El archivo `data/presupuestos.json` contiene los límites mensuales generales configurados. Para la demostración, incluye un presupuesto de $3000 para noviembre de 2026:
+
+```json
+[
+  {
+    "mes": "2026-11",
+    "limite": 3000
+  }
+]
+```
+
+Los presupuestos aplican al total de gastos del mes, sin distinguir categorías. Si el archivo no existe, el servidor lo crea automáticamente vacío (`[]`).
 
 ---
 
@@ -175,7 +198,7 @@ Al iniciar, el cliente muestra la configuración efectiva (modelo, URL del LLM y
 * Escribe `nuevo` para limpiar el historial de la conversación y comenzar desde cero.
 * Escribe `salir` para cerrar la sesión y desconectar el cliente MCP.
 
-Por cada herramienta que el modelo solicite, el cliente imprime el nombre, los argumentos y el resultado de la llamada MCP antes de mostrar la respuesta final del asistente. Tras cada ronda de herramientas, el cliente reenvía el historial actualizado al LLM (segunda llamada) y lo indica con el mensaje `(LLM) Enviando el resultado de la herramienta al modelo para la respuesta final...`.
+Por cada herramienta que el modelo solicite, el cliente imprime el nombre, los argumentos y el resultado de la llamada MCP. Tras cada ronda, reenvía el historial actualizado y las definiciones de herramientas al LLM; el ciclo continúa hasta obtener una respuesta sin `tool_calls`. Para evitar ciclos interminables, se permiten hasta 10 rondas por consulta. Si Ollama devuelve una respuesta vacía, el cliente informa el error.
 
 ---
 
@@ -183,18 +206,23 @@ Por cada herramienta que el modelo solicite, el cliente imprime el nombre, los a
 
 | Herramienta | Parámetros | Descripción |
 | :--- | :--- | :--- |
-| `registrar-gasto` | `descripcion` (string, no vacío), `monto` (number > 0) | Registra un nuevo gasto asignando un ID incremental automático. |
+| `registrar-gasto` | `descripcion` (string, no vacío), `monto` (number > 0), `fecha` (YYYY-MM-DD), `categoria` (string) | Registra un nuevo gasto asignando un ID incremental automático. |
 | `consultar-gastos` | *(ninguno)* | Devuelve la lista completa de gastos registrados en `data/gastos.json`. |
 | `consultar-gasto` | `id` (entero > 0) | Busca y devuelve el detalle de un gasto específico por su ID. |
-| `actualizar-gasto` | `id` (entero > 0), `descripcion?` (string), `monto?` (number > 0) | Actualiza la descripción y/o el monto de un gasto existente. Requiere al menos uno de los dos campos opcionales. |
+| `actualizar-gasto` | `id` (entero > 0), `descripcion?` (string), `monto?` (number > 0), `fecha?` (YYYY-MM-DD), `categoria?` (string) | Actualiza uno o varios campos de un gasto existente. |
 | `eliminar-gasto` | `id` (entero > 0) | Elimina un gasto del archivo JSON a partir de su ID. |
 | `calcular-total-gastos` | *(ninguno)* | Suma los montos de todos los registros y devuelve el total gastado. |
+| `filtrar-gastos` | `mes?`, `fechaDesde?`, `fechaHasta?`, `categoria?`, `descripcion?`, `montoMin?`, `montoMax?` | Filtra gastos por período, categoría, texto y rango de monto. |
+| `configurar-presupuesto` | `mes` (YYYY-MM), `limite` (number > 0) | Configura un límite mensual general para todos los gastos en `data/presupuestos.json`. |
+| `consultar-presupuesto` | `mes?` (YYYY-MM) | Informa gasto total, límite, saldo disponible y porcentaje consumido del mes. |
+
+Los presupuestos son generales por mes e incluyen todos los gastos, independientemente de su categoría.
 
 Además, el servidor expone el recurso `gastos://about` con una descripción breve del servicio.
 
 ### Validaciones
 
-* Los parámetros se validan con **zod** (tipos, enteros, valores positivos y cadenas no vacías).
+* Los parámetros se validan con **zod** (tipos, enteros, valores positivos, cadenas no vacías y formatos `YYYY-MM-DD`/`YYYY-MM`).
 * Si un ID no existe, o si en `actualizar-gasto` no se envía ningún campo a modificar, la herramienta responde con `isError: true` y un mensaje en español comprensible, que el LLM usa para explicar el problema al usuario.
 
 ---
@@ -218,7 +246,8 @@ Además, el servidor expone el recurso `gastos://about` con una descripción bre
 ```text
 Gastos MCP Server corriendo en http://localhost:5000
 Endpoint para conectarse: http://localhost:5000/mcp
-Archivo de datos: .../expense_tracker/data/gastos.json
+Archivo de gastos: .../expense_tracker/data/gastos.json
+Archivo de presupuestos: .../expense_tracker/data/presupuestos.json
 ```
 
 ### 2. Cliente mostrando el modelo, la URL del LLM y la URL del servidor MCP utilizados
@@ -239,35 +268,71 @@ Herramientas disponibles:
   - registrar-gasto: Registra un nuevo gasto personal
   - consultar-gastos: Obtiene la lista completa de todos los gastos personales registrados
   - consultar-gasto: Consulta el detalle de un gasto específico buscando por su ID numérico
-  - actualizar-gasto: Actualiza la descripción y/o el monto de un gasto existente usando su ID
+  - actualizar-gasto: Actualiza la descripción, el monto, la fecha y/o la categoría de un gasto existente usando su ID
   - eliminar-gasto: Elimina un gasto registrado usando su ID numérico
   - calcular-total-gastos: Calcula la suma total del dinero gastado entre todos los registros
+  - filtrar-gastos: Filtra los gastos por mes, rango de fechas, categoría, descripción o rango de monto
+  - configurar-presupuesto: Configura un límite mensual general para todos los gastos del mes
+  - consultar-presupuesto: Consulta el gasto total, límite y saldo disponible del presupuesto mensual general
 ```
 
 ### 4. Conversación en la que el modelo solicita la herramienta, el cliente realiza la llamada y el modelo entrega una respuesta final
 
 ```text
-Dile algo al asistente: Consulta el gasto con ID 2
+Dile algo al asistente: configura un presupuesto de 1500 para diciembre. agrega un gasto de regalos de 1000.00 para el 01 de diciembre del 2026. tambien agrega otro gasto de luz en la categoria de "hogar" de 1200.00 para la misma fecha. dime si me paso del presupuesto.
 
-(MCP) El modelo llama a la herramienta: consultar-gasto
-(MCP) Argumentos: {"id":2}
-(MCP) Resultado MCP: Gasto encontrado -> ID: 2 | Descripción: Recarga de transporte público | Monto: $200.00
+(MCP) El modelo llama a la herramienta: configurar-presupuesto
+(MCP) Argumentos: {"limite":1500,"mes":"2026-12"}
+(MCP) Resultado MCP: Presupuesto mensual configurado para 2026-12: $1500.00 para todos los gastos.
 
-(LLM) Enviando el resultado de la herramienta al modelo para la respuesta final...
+(MCP) El modelo llama a la herramienta: registrar-gasto
+(MCP) Argumentos: {"categoria":"Navidad","descripcion":"Regalos","fecha":"2026-12-01","monto":1000}
+(MCP) Resultado MCP: Gasto registrado con éxito: [ID: 10] Regalos - $1000.00 - Navidad - 2026-12-01
 
-Asistente: El gasto con ID 2 corresponde a una recarga de transporte público por $200.00.
+(MCP) El modelo llama a la herramienta: registrar-gasto
+(MCP) Argumentos: {"categoria":"Hogar","descripcion":"Luz","fecha":"2026-12-01","monto":1200}
+(MCP) Resultado MCP: Gasto registrado con éxito: [ID: 11] Luz - $1200.00 - Hogar - 2026-12-01
+
+(MCP) El modelo llama a la herramienta: consultar-presupuesto
+(MCP) Argumentos: {"mes":"2026-12"}
+(MCP) Resultado MCP: Presupuesto excedido. Mes: 2026-12. Gastado total: $2200.00. Límite mensual: $1500.00. Disponible: $-700.00. Uso: 146.7%.
+
+(LLM) Enviando el resultado de la(s) herramienta(s) al modelo para la respuesta final...
+
+Asistente: He configurado el presupuesto de $1500.00 para diciembre de 2026 y he registrado ambos gastos:
+
+1. **Regalos (Navidad):** $1000.00 para el 2026-12-01.
+2. **Luz (Hogar):** $1200.00 para el 2026-12-01.
+
+Respecto a tu presupuesto: **Sí, has excedido el límite.**
+
+Los gastos registrados para diciembre de 2026 suman un total de **$2200.00**, superando el presupuesto mensual de $1500.00. Te encuentras por encima del límite en $700.00.
 ```
 
 ### 5. Caso de validación o error controlado de la herramienta
 
 ```text
-Dile algo al asistente: Elimina el gasto con ID 99
+Dile algo al asistente: dame todos los gastos de enero y busca el gasto con el id 99
 
-(MCP) El modelo llama a la herramienta: eliminar-gasto
+(MCP) El modelo llama a la herramienta: consultar-gasto
 (MCP) Argumentos: {"id":99}
-(MCP) Resultado MCP: No se encontró ningún gasto con el ID 99 para eliminar.
+(MCP) Resultado MCP: No se encontró ningún gasto con el ID 99.
 
-(LLM) Enviando el resultado de la herramienta al modelo para la respuesta final...
+(LLM) Enviando el resultado de la(s) herramienta(s) al modelo para la respuesta final...
 
-Asistente: No pude eliminar ese gasto porque no existe ningún registro con el ID 99 en tu lista. Si deseas, puedo mostrarte tus gastos actuales para verificar los IDs disponibles.
+Asistente: El gasto con ID 99 **no fue encontrado** en el sistema.
+
+Por favor, dime el año para que pueda buscarte todos los gastos de enero.
+
+Dile algo al asistente: 2026
+
+(MCP) El modelo llama a la herramienta: filtrar-gastos
+(MCP) Argumentos: {"fechaDesde":"2026-01-01","fechaHasta":"2026-01-31","mes":"2026-01"}
+(MCP) Resultado MCP: No se encontraron gastos con los filtros proporcionados.
+
+(LLM) Enviando el resultado de la(s) herramienta(s) al modelo para la respuesta final...
+
+Asistente: De acuerdo. He buscado en el sistema todos los gastos registrados para enero de 2026.
+
+Actualmente, **no se han encontrado gastos** registrados para el mes de enero de 2026.
 ```
